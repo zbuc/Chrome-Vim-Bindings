@@ -1,11 +1,20 @@
-var TTNInjection = (function() {
+// ==UserScript==
+// @name          Type-To-Navigate
+// @description   Enables type-to-navigate, where you can select links/anything just by typing, then hit return to follow a link.
+// @namespace     http://www.danielbergey.com/
+// @include       *
+
+// by Daniel Bergey (http://www.danielbergey.com/)
+// ==/UserScript==
+
+(function() {
 	
-	return {
-		
+	var ext = {
 		searchString: '',
 		nextSearchString: '',
 		displaySearchString: '',
 		keyupTimeout: null,
+		isSearching: false,
 		
 		indicator: null,
 		indicatorInner: null,
@@ -13,40 +22,23 @@ var TTNInjection = (function() {
 		indicatorFadeTimeout: null,
 		indicatorFlashTimeout: null,
 		
-		blacklist: [],
+		trim: function(str) { return str.match(/^\s*(.*?)\s*$/)[1]; },
 		
-		trim: function(str) { return String(str).match(/^\s*(.*?)\s*$/)[1]; },
-		fireEvent: function(el, eventName) {
-			var evt = document.createEvent("HTMLEvents");
-			evt.initEvent(eventName, true, true);
-			el.dispatchEvent(evt);
-		},
 		focusedElement: function() {
 			var el = document.activeElement;
 			var computedStyle = window.getComputedStyle(el);
 			return (( el.tagName.match(/input|textarea|select|button/i) && (el.getAttribute('type') || '').match(/^|text|search|password$/) ) || el.getAttribute('contenteditable') == 'true' || computedStyle['-webkit-user-modify'] != 'read-only') ? el : false;
 		},
-		mouseoutListener: function() {
-			TTNInjection.fireEvent(this, 'mouseout');
-			// make sure we remove ourselves
-			this.removeEventListener('focusout', TTNInjection.mouseoutListener);
-		},
 		focusSelectedLink: function(str) {
 			var s = window.getSelection();
-			var color = '';
-			
 			// get element
 			var el = s.anchorNode || false;
 			while ( el && el.tagName != 'A' ) el = el.parentNode;
-			
 			if ( el && el.tagName == 'A' ) {
-				color = 'green';
+				if ( ext.indicator ) ext.indicatorInner.className = 'green';
 				el.focus();
-				// send mouseover event to new element
-				TTNInjection.fireEvent(el, 'mouseover');
-				// send mouseout event when it loses focus
-				el.addEventListener('focusout', TTNInjection.mouseoutListener);
 			} else if ( s.rangeCount ) {
+				if ( ext.indicator ) ext.indicatorInner.className = '';
 				// get selection
 				var range = document.createRange();
 				range.setStart(s.anchorNode, s.anchorOffset);
@@ -55,287 +47,219 @@ var TTNInjection = (function() {
 				document.activeElement.blur();
 				// reselect selection
 				s.addRange(range);
-				
-				// var el = s.extentNode || false;
-				// if (el) {
-				// 	while ( el.nodeType == 3 ) el = el.parentNode;
-				// 	console.log(el.nodeType);
-				// 	// send mouseover event to new element
-				// 	TTNInjection.fireEvent(el, 'mouseover');
-				// 	var focusFakeEl = this.createHiddenElementWithTagNameAndContents('a');
-				// 	focusFakeEl.focus();
-				// 	// send mouseout event when it loses focus
-				// 	focusFakeEl.addEventListener('focusout', function() { TTNInjection.mouseoutListener.call(el); });
-				// }
-				
 			} else {
+				if ( ext.indicator ) ext.indicatorInner.className = '';
 				document.activeElement.blur();
 			}
-			return color;
-		},
-		createHiddenElementWithTagNameAndContents: function(tagName, contents) {
-			var hiddenEl = document.createElement(tagName);
-			hiddenEl.style.position = 'absolute';
-			hiddenEl.style.top = '-1000px';
-			if (contents) hiddenEl.innerHTML = contents;
-			document.getElementsByTagName('body')[0].appendChild(hiddenEl);
-			return hiddenEl;
 		},
 		createIndicator: function() {
 			// only make one, in the outside
-			if (window !== window.top || !document.getElementsByTagName('body').length ) return;
+			if ( window.top != window ) return;
 			
 			// create indicator
-			this.indicator = document.createElement('ttn');
-			this.indicator.innerHTML = '<ttn_inner></ttn_inner>';
-			document.getElementsByTagName('body')[0].appendChild(this.indicator);
-			this.indicatorInner = document.getElementsByTagName('ttn_inner')[0];
+			var container = document.createElement('div');
+			container.innerHTML = '<div id="type_to_navigate_keys">\
+				<style>\
+				#type_to_navigate_keys {\
+					position: fixed;\
+					left: 0;\
+					right: 0;\
+					bottom: 10%;\
+					text-align: center;\
+					opacity: 0;\
+					font: 18px helvetica;\
+					-webkit-transition: opacity .25s linear;\
+					z-index: 9999999;\
+					display: none;\
+				}\
+				#type_to_navigate_keys_inner {\
+					background: rgba(0, 0, 0, 0.75);\
+					-webkit-border-radius: 8px;\
+					border: 2px solid rgba(255, 255, 255, 0.75);\
+					-webkit-box-shadow: 0 3px 25px rgba(0, 0, 0, 0.75);\
+					margin: 0 auto;\
+					display: inline-block;\
+					padding: 8px;\
+					color: white;\
+				}\
+				#type_to_navigate_keys_inner.red {\
+					background: rgba(255, 0, 0, 0.75);\
+				}\
+				#type_to_navigate_keys_inner.green {\
+					background: rgba(0, 191, 0, 0.75);\
+				}\
+				</style>\
+				<div id="type_to_navigate_keys_inner"></div>\
+			</div>';
+			document.body.appendChild(ext.indicator = container.childNodes[0]);
+			ext.indicatorInner = document.getElementById('type_to_navigate_keys_inner');
 		},
-		displayInIndicator: function(str, append, color) {
-			clearTimeout(this.indicatorTimeout);
-			clearTimeout(this.indicatorFadeTimeout);
-			if ( this.indicator ) {
-				this.indicatorInner.setAttribute('color', color || '');
-				this.indicatorInner.innerHTML = str + (append || '');
-				this.indicator.style['-webkit-transition'] = 'none';
-				this.indicator.style.opacity = 1.0;
-				this.indicator.style.display = 'block';
-				this.indicatorTimeout = setTimeout(function() {
-					TTNInjection.indicator.style['-webkit-transition'] = null;
-					TTNInjection.indicator.style.opacity = 0.0;
-					TTNInjection.indicatorFadeTimeout = setTimeout(function() {
-						TTNInjection.indicator.style.display = null;
+		displayInIndicator: function(str, append) {
+			clearTimeout(ext.indicatorTimeout);
+			clearTimeout(ext.indicatorFadeTimeout);
+			if ( ext.indicator ) {
+				ext.indicatorInner.innerHTML = str + (append || '');
+				ext.indicator.style['-webkit-transition'] = 'none';
+				ext.indicator.style.opacity = 1.0;
+				ext.indicator.style.display = 'block';
+				ext.indicatorTimeout = setTimeout(function() {
+					ext.indicator.style['-webkit-transition'] = null;
+					ext.indicator.style.opacity = 0.0;
+					ext.indicatorFadeTimeout = setTimeout(function() {
+						ext.indicator.style.display = null;
 					}, 500);
 				}, 1000);
 			}
 		},
 		hideIndicator: function() {
-			this.searchString = '';
-			this.nextSearchString = '';
-			this.displaySearchString = '';
-			this.indicator.style.display = 'none';
+			ext.searchString = '';
+			ext.nextSearchString = '';
+			ext.displaySearchString = '';
+			ext.indicator.style.display = 'none';
+			ext.isSearching = false;
 		},
 		flashIndicator: function() {
-			clearTimeout(this.indicatorFlashTimeout);
-			if ( this.indicator ) {
-				this.indicatorInner.setAttribute('color', 'red');
-				this.indicatorFlashTimeout = setTimeout(function() {
-					TTNInjection.indicatorInner.removeAttribute('color');
+			clearTimeout(ext.indicatorFlashTimeout);
+			if ( ext.indicator ) {
+				ext.indicatorInner.className = 'red';
+				ext.indicatorFlashTimeout = setTimeout(function() {
+					ext.indicatorInner.className = '';
 				}, 400);
 			}
 		},
 		selectedTextEqualsNextSearchString: function() {
 			var s = window.getSelection();
-			return s.rangeCount && this.trim(String(s).toLowerCase()) == this.trim(this.nextSearchString.toLowerCase());
-		},
-		hijackCopyWith: function(textToCopy) {
-			
-			// get current selection
-			var s = window.getSelection();
-			var currentSelection = s.getRangeAt(0);
-			
-			// create element
-			var ttn_clipboard = this.createHiddenElementWithTagNameAndContents('ttn_clipboard', textToCopy);
-			console.log('Copied:', textToCopy);
-			
-			// select it
-			s.removeAllRanges();
-			var range = document.createRange();
-			range.selectNode(document.querySelectorAll('ttn_clipboard')[0]);
-			s.addRange(range);
-			
-			// do this stuff immediately after copy operation
-			setTimeout(function() {
-				s.removeAllRanges();
-				s.addRange(currentSelection);
-				ttn_clipboard.parentNode.removeChild(ttn_clipboard);
-			}, 0);
+			return s.rangeCount && ext.trim(String(s).toLowerCase()) == ext.trim(ext.nextSearchString.toLowerCase());
 		},
 		handleNonAlphaKeys: function(e) {
-			e.cmdKey = e.metaKey;
+			e.cmdKey = e.metaKey && !e.ctrlKey;
 			e.character = String.fromCharCode(e.keyCode);
 			
 			// handle esc in fields (blur)
 			if ( e.keyCode == 27 ) {
-				this.displayInIndicator('␛');
-				if ( this.focusedElement() || this.selectedTextEqualsNextSearchString() ) {
+				ext.displayInIndicator('␛');
+				if ( ext.focusedElement() || ext.selectedTextEqualsNextSearchString() ) {
 					document.activeElement.blur();
 				} else {
-					this.flashIndicator();
+					ext.flashIndicator();
 				}
-				this.hideIndicator();
+				ext.hideIndicator();
 				return;
+			}
+		
+			// handle backspace when typing
+			if ( e.keyCode == 8 && ext.isSearching && ext.searchString != '' ) {
+				ext.hitBackspace(e);
 			}
 			
 			// if cmd-g and we have go to next
 			var s = window.getSelection();
-			if ( this.selectedTextEqualsNextSearchString() ) {
-				if ( e.character == 'G' && e.cmdKey ) {
-					window.find(this.nextSearchString, false, e.shiftKey, true, false, true, false);
+			if ( e.character == 'G' && e.cmdKey && ext.selectedTextEqualsNextSearchString() ) {
+				window.find(ext.nextSearchString, false, e.shiftKey, true, false, false, false);
 				
-					// find again if we're now IN indicator div, or selected something invisible
-					// or selected something not in viewport (FIXME - NOT YET)
-					if ( (this.indicator && this.trim(s.anchorNode.parentNode.tagName) == this.trim(this.indicatorInner.tagName)) || !s.anchorNode.parentNode.offsetHeight)
-						window.find(this.nextSearchString, false, e.shiftKey, true, false, true, false);
-				
-					var color = this.focusSelectedLink(this.nextSearchString);
-					this.displayInIndicator(this.nextSearchString, ' (⌘G)', color);
-					event.preventDefault();
-					event.stopPropagation();
-				} else if ( e.character == 'I' && e.cmdKey && !e.ctrlKey && !e.shiftKey ) {
-					var href = this.mungeHref(document.activeElement.getAttribute('href')).join('');
-					if (href) safari.self.tab.dispatchMessage('sendToInstapaper', { href: href });
-					event.preventDefault();
-					event.stopPropagation();
+				// make sure we're not now IN indicator div, if so find again
+				if ( ext.indicator && ext.trim(s.anchorNode.parentNode.id) == ext.trim(ext.indicatorInner.id) ) {
+					window.find(ext.nextSearchString, false, e.shiftKey, true, false, false, false);
 				}
+				
+				ext.focusSelectedLink(ext.nextSearchString);
+				ext.displayInIndicator(ext.nextSearchString, ' (⌘G)');
+				event.preventDefault();
+				event.stopPropagation();
+				return false;
 			}
 		},
-		sendToInstapaperCallback: function(data) {
-			if ( TTNInjection.indicator ) {
-				if (data.status == 201) { // success
-					TTNInjection.displayInIndicator('URL saved to Instapaper', ' (⌘I)', 'gray');
-				} else if (data.status == 403) { // wrong credentials
-					TTNInjection.displayInIndicator('Incorrect Instapaper credentials', ' (⌘I)', 'red');
-				} else {
-					TTNInjection.displayInIndicator('Sorry, Instapaper error', ' (⌘I)', 'red');
-				}
-			}
+		hitBackspace: function(e) {
+			// remove last char
+			ext.searchString = ext.searchString.substring(0, ext.searchString.length-1);
+			ext.searchStringChanged(e);
+	
+			// postpone clearing
+			clearTimeout(ext.keyupTimeout);
+			ext.keyupTimeout = setTimeout(function() {
+				ext.searchString = '';
+				ext.isSearching = false;
+			}, 1000);
 		},
-		handleCopy: function(e) {
-			if ( document.activeElement && document.activeElement.tagName == 'A' && this.selectedTextEqualsNextSearchString() ) {
-				this.hijackCopyWith(e.srcElement.href);
-				this.displayInIndicator('URL copied', ' (⌘C)', 'blue');
-			}
+		appendSearchString: function(c,e) {
+			// append char
+			ext.searchString += c;
+			ext.searchStringChanged(e);
+		},
+		searchStringChanged: function(e) {
+			ext.nextSearchString = ext.searchString;
+			ext.displaySearchString = ext.searchString.replace(/ /g, '␣');
+		
+			// clear selection and find again
+			window.getSelection().removeAllRanges();
+			window.find(ext.searchString, false, false, true, false, false, false);
+			
+			// focus the link so return key follows
+			ext.focusSelectedLink(ext.nextSearchString);
+		
+			ext.displayInIndicator(ext.nextSearchString);
+			
+			// check for nothing found
+			if ( !window.getSelection().rangeCount ) ext.flashIndicator();
+			
+			e.preventDefault();
+			e.stopPropagation();
 		},
 		handleAlphaKeys: function(e) {
 			e.cmdKey = e.metaKey && !e.ctrlKey;
 			e.character = String.fromCharCode(e.keyCode);
 			
 			// if it was a typeable character, Cmd key wasn't down, and a field doesn't have focus
-			if ( e.keyCode && !this.focusedElement() && !e.cmdKey && !e.metaKey && !e.ctrlKey) {
-				
+			if ( e.keyCode && !ext.focusedElement() && !e.cmdKey && !e.metaKey && !e.ctrlKey) {
 				if ( e.keyCode == 13 ) { // return key but no link; flash
-					this.displayInIndicator(this.nextSearchString, ' ⏎');
-					this.flashIndicator();
+					ext.displayInIndicator(ext.nextSearchString, ' ⏎');
+					ext.flashIndicator();
 				} else {
-					if ( this.searchString == '' && (e.keyCode == 32 || e.keyCode == 8) ) {
+					if ( ext.searchString == '' && (e.keyCode == 32 || e.keyCode == 8) ) {
 						// do nothing, we allow the space bar and delete to fall through to scroll the page if we have no searchstring
-					} else {
-						// append char
-						this.searchString += e.character;
-						this.nextSearchString = this.searchString;
-						this.displaySearchString = this.searchString.replace(/ /g, '␣');
-					
-						// let the first letter fall through, for j/k-style navigation
-						// also let it fall through if it's only j's and k's (or possibly other known nav keys unlikely to be words), or a string of idential chars
-						// KeyThinkAI™, idea credit @andyfowler
-						if ( this.searchString.length > 1 && !this.searchString.match(/^[jk]*$/) && !this.searchString.match(new RegExp('^['+this.searchString[0]+']+$')) ) {
-							
-							// clear selection and find again
-							window.getSelection().removeAllRanges();
-							window.find(this.searchString, false, false, true, false, true, false);
-							
-							// focus the link so return key follows
-							var color = this.focusSelectedLink(this.nextSearchString);
-							this.displayInIndicator(this.nextSearchString, '', color);
-							
-							// check for nothing found
-							if ( !window.getSelection().rangeCount ) this.flashIndicator();
-							
-							e.preventDefault();
-							e.stopPropagation();
-						}
+					} else if ( e.keyCode == 47 && !ext.isSearching ) {
+						// slash key -- start searching
+						ext.isSearching = true;
+					} else if ( ext.isSearching ) {
+						// append their search to the search string
+						ext.appendSearchString(e.character, e);
 					}
 				}
 				
 				// postpone clearing
-				clearTimeout(this.keyupTimeout);
-				this.keyupTimeout = setTimeout(function() {
-					TTNInjection.searchString = '';
+				clearTimeout(ext.keyupTimeout);
+				ext.keyupTimeout = setTimeout(function() {
+					ext.searchString = '';
+					ext.isSearching = false;
 				}, 1000);
 				
-				// return false;
+				return false;
 			}
-		},
-		mungeHref: function(href) {
-			// figure out what to do 
-			if ( href.match(/^([a-zA-Z]+:)/) )
-				var prefix = '';
-			else if ( href.match(/^\//) )
-				var prefix = location.protocol +'//'+ location.host;
-			else if ( href.match(/^#/) )
-				var prefix = location.href;
-			else
-				var prefix = location.href.replace(/\/[^\/]*(\?.*)?$/, '/');
-				
-			// deal with ../ in <a href>
-			var this_href = href;
-			while ( this_href.match(/\.\.\//) ) {
-				this_href = this_href.replace(/\.\.\//, '');
-				prefix = prefix.replace(/[^\/]*\/$/, '');
-			}
-			return [prefix, this_href];
 		},
 		init: function() {
 			// only apply to top page
-			if ( window !== window.top ) return;
+			if ( document != window.top.document ) return;
 			
-			// bind message listener
-			safari.self.addEventListener("message", function(msg) {
-				TTNInjection[msg.name](msg.message);
-			}, false);
-			
-			// fetch blacklist
-			safari.self.tab.dispatchMessage('getBlacklist');
-		},
-		getBlacklistCallback: function(blacklist) {
-			this.blacklist = blacklist.split(',');
-
-			// bail if location.host matches anything in the blacklist
-			// for (href in this.blacklist) {
-			// 				if ( location.host.match(new RegExp('^'+this.blacklist[href].replace('*', '.*')+'$')) ) {
-			// 					console.log('Not engaging Type-To-Navigate due to blacklist.');
-			// 					return;
-			// 				}
-			// 			}
-			
-			// ok go ahead and do stuff
-			this.setUpEventsAndElements.apply(this);
-		},
-		setUpEventsAndElements: function() {
 			// add indicator div to page
-			this.createIndicator();
-
+			ext.createIndicator();
+			
 			// handle command-g & esc
 			window.addEventListener('keydown', function(e) {
-				TTNInjection.handleNonAlphaKeys(e);
-/*				safari.self.tab.dispatchMessage('handleNonAlphaKeys', new SafariEvent(e));*/
-			}, true);
-			
+				ext.handleNonAlphaKeys(e);
+			});
+
 			// handle typeable keypresses
 			window.addEventListener('keypress', function(e) {
-				TTNInjection.handleAlphaKeys(e);
-/*				safari.self.tab.dispatchMessage('handleAlphaKeys', new SafariEvent(e));*/
-			}, true);
-			
-			window.addEventListener('beforecopy', function(e) {
-				TTNInjection.handleCopy(e);
-			}, true);
+				ext.handleAlphaKeys(e);
+			});
 		}
 	};
+	window._type_to_navigate = ext;
+
+	// wait till the opportune time to set up
+	if ( document.readyState == 'complete' )
+		ext.init();
+	else window.addEventListener('load', function() {
+		ext.init();
+	});
 })();
-
-// wait till the opportune time to set up
-// var injectionInterval = setInterval(function() {
-// 	console.log('document.readyState', document.readyState);
-// 	if ( document.readyState != 'complete' ) return;
-// 	clearInterval(injectionInterval);
-// 	TTNInjection.init();
-// }, 100);
-
-if ( document.readyState == 'complete' )
-	TTNInjection.init();
-else window.addEventListener('load', function() {
-	TTNInjection.init();
-});
-

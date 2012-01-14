@@ -21,7 +21,9 @@
 		indicatorTimeout: null,
 		indicatorFadeTimeout: null,
 		indicatorFlashTimeout: null,
-		
+	
+		scrollAmount: 50,
+
 		trim: function(str) { return str.match(/^\s*(.*?)\s*$/)[1]; },
 		
 		focusedElement: function() {
@@ -220,6 +222,15 @@
 					} else if ( e.keyCode == 47 && !ext.isSearching ) {
 						// slash key -- start searching
 						ext.isSearching = true;
+					} else if ( (e.character == 'j' || e.character == 'k') && !ext.isSearching ) {
+						// scroll up/down
+						if ( e.character == 'j' ) {
+							// down
+							window.scrollBy(0, ext.scrollAmount);
+						} else {
+							// up
+							window.scrollBy(0, -1 * ext.scrollAmount);
+						}
 					} else if ( ext.isSearching ) {
 						// append their search to the search string
 						ext.appendSearchString(e.character, e);

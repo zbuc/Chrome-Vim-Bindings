@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name          Type-To-Navigate
-// @description   Enables type-to-navigate, where you can select links/anything just by typing, then hit return to follow a link.
-// @namespace     http://www.danielbergey.com/
+// @name          Chrome-Vim-Bindings
+// @description   Enables vim-style bindings in Google Chrome 
+// @namespace     http://czub.us/
 // @include       *
 
-// by Daniel Bergey (http://www.danielbergey.com/)
+// by Chris Czub (http://czub.us/)
 // ==/UserScript==
 
 (function() {
@@ -14,7 +14,8 @@
 		nextSearchString: '',
 		displaySearchString: '',
 		keyupTimeout: null,
-		isSearching: false,
+		searchMode: false,
+		resultMode: false,
 		
 		indicator: null,
 		indicatorInner: null,
@@ -91,7 +92,7 @@
 					background: rgba(0, 191, 0, 0.75);\
 				}\
 				</style>\
-				<div id="type_to_navigate_keys_inner"></div>\
+				<div id="type_to_navigate_keys_inner" class="cell-input"></div>\
 			</div>';
 			document.body.appendChild(ext.indicator = container.childNodes[0]);
 			ext.indicatorInner = document.getElementById('type_to_navigate_keys_inner');
@@ -118,7 +119,7 @@
 			ext.nextSearchString = '';
 			ext.displaySearchString = '';
 			ext.indicator.style.display = 'none';
-			ext.isSearching = false;
+			ext.searchMode = false;
 		},
 		flashIndicator: function() {
 			clearTimeout(ext.indicatorFlashTimeout);
@@ -150,26 +151,69 @@
 			}
 		
 			// handle backspace when typing
-			if ( e.keyCode == 8 && ext.isSearching && ext.searchString != '' ) {
+			if ( e.keyCode == 8 && ext.searchMode && ext.searchString != '' ) {
 				ext.hitBackspace(e);
+				return false;
+			}
+
+			// backspace when not typing(go back)
+			if ( e.keyCode == 8 && !ext.searchMode && ext.searchString == '' ) {
+				if ( !( e.target.type == 'text' ||
+						e.target.type == 'textarea' ||
+						e.target.type == 'password' ) ) {
+					window.history.back();
+				}
 			}
 			
 			// if cmd-g and we have go to next
-			var s = window.getSelection();
 			if ( e.character == 'G' && e.cmdKey && ext.selectedTextEqualsNextSearchString() ) {
-				window.find(ext.nextSearchString, false, e.shiftKey, true, false, false, false);
-				
-				// make sure we're not now IN indicator div, if so find again
-				if ( ext.indicator && ext.trim(s.anchorNode.parentNode.id) == ext.trim(ext.indicatorInner.id) ) {
-					window.find(ext.nextSearchString, false, e.shiftKey, true, false, false, false);
-				}
-				
-				ext.focusSelectedLink(ext.nextSearchString);
+				if ( e.shiftKey )
+					ext.goToPrev();
+				else
+					ext.goToNext();
 				ext.displayInIndicator(ext.nextSearchString, ' (⌘G)');
-				event.preventDefault();
-				event.stopPropagation();
+				e.preventDefault();
+				e.stopPropagation();
 				return false;
 			}
+		},
+		goToNext: function() {
+			var s = window.getSelection();
+
+			window.find(ext.nextSearchString, false, false, true, false, false, false);
+			
+			// make sure we're not now IN indicator div, if so find again
+			if ( ext.indicator && ext.trim(s.anchorNode.parentNode.id) == ext.trim(ext.indicatorInner.id) ) {
+				window.find(ext.nextSearchString, false, false, true, false, false, false);
+			}
+			
+			ext.focusSelectedLink(ext.nextSearchString);
+
+			clearTimeout(ext.keyupTimeout);
+			ext.keyupTimeout = setTimeout(function() {
+				ext.searchString = '';
+				ext.searchMode = false;
+				ext.resultMode = false;
+			}, 1000);
+		},
+		goToPrev: function() {
+			var s = window.getSelection();
+
+			window.find(ext.nextSearchString, false, true, true, false, false, false);
+			
+			// make sure we're not now IN indicator div, if so find again
+			if ( ext.indicator && ext.trim(s.anchorNode.parentNode.id) == ext.trim(ext.indicatorInner.id) ) {
+				window.find(ext.nextSearchString, false, true, true, false, false, false);
+			}
+			
+			ext.focusSelectedLink(ext.nextSearchString);
+
+			clearTimeout(ext.keyupTimeout);
+			ext.keyupTimeout = setTimeout(function() {
+				ext.searchString = '';
+				ext.searchMode = false;
+				ext.resultMode = false;
+			}, 1000);
 		},
 		hitBackspace: function(e) {
 			// remove last char
@@ -180,8 +224,14 @@
 			clearTimeout(ext.keyupTimeout);
 			ext.keyupTimeout = setTimeout(function() {
 				ext.searchString = '';
-				ext.isSearching = false;
+				ext.searchMode = false;
+				ext.resultMode = false;
 			}, 1000);
+			
+			// prevent others from interfering
+			e.preventDefault();
+			e.stopPropagation();
+			e.target = ext.indicatorInner;
 		},
 		appendSearchString: function(c,e) {
 			// append char
@@ -207,22 +257,30 @@
 			e.preventDefault();
 			e.stopPropagation();
 		},
+		enterResultMode: function() {
+			ext.displayInIndicator(ext.nextSearchString, ' ⏎');
+			ext.flashIndicator();
+			ext.resultMode = true;
+		},
 		handleAlphaKeys: function(e) {
 			e.cmdKey = e.metaKey && !e.ctrlKey;
 			e.character = String.fromCharCode(e.keyCode);
 			
 			// if it was a typeable character, Cmd key wasn't down, and a field doesn't have focus
 			if ( e.keyCode && !ext.focusedElement() && !e.cmdKey && !e.metaKey && !e.ctrlKey) {
-				if ( e.keyCode == 13 ) { // return key but no link; flash
-					ext.displayInIndicator(ext.nextSearchString, ' ⏎');
-					ext.flashIndicator();
+				if ( e.keyCode == 13 && ext.searchMode && !ext.resultMode ) { // return key and not in result mode; enter result mode
+					ext.enterResultMode();
+					// don't follow links right now
+					e.preventDefault();
+					e.stopPropagation();
+					return false;
 				} else {
 					if ( ext.searchString == '' && (e.keyCode == 32 || e.keyCode == 8) ) {
 						// do nothing, we allow the space bar and delete to fall through to scroll the page if we have no searchstring
-					} else if ( e.keyCode == 47 && !ext.isSearching ) {
+					} else if ( e.keyCode == 47 && !ext.searchMode ) {
 						// slash key -- start searching
-						ext.isSearching = true;
-					} else if ( (e.character == 'j' || e.character == 'k') && !ext.isSearching ) {
+						ext.searchMode = true;
+					} else if ( (e.character == 'j' || e.character == 'k') && !ext.searchMode ) {
 						// scroll up/down
 						if ( e.character == 'j' ) {
 							// down
@@ -231,7 +289,13 @@
 							// up
 							window.scrollBy(0, -1 * ext.scrollAmount);
 						}
-					} else if ( ext.isSearching ) {
+					} else if ( ext.resultMode ) {
+						if ( e.character == 'n' ) {
+							ext.goToNext();
+						} else if ( e.character == 'N' ) {
+							ext.goToPrev();
+						}
+					} else if ( ext.searchMode ) {
 						// append their search to the search string
 						ext.appendSearchString(e.character, e);
 					}
@@ -241,7 +305,8 @@
 				clearTimeout(ext.keyupTimeout);
 				ext.keyupTimeout = setTimeout(function() {
 					ext.searchString = '';
-					ext.isSearching = false;
+					ext.searchMode = false;
+					ext.resultMode = false;
 				}, 1000);
 				
 				return false;

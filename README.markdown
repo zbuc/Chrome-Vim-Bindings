@@ -1,53 +1,47 @@
-Type-To-Navigate
-================
+Chrome-Vim-Bindings
+===================
 
 Overview
 --------
 
-Type-To-Navigate is an extension for Apple Safari and Google Chrome. It enables a type-to-select feature much like Firefox's **accessibility.typeaheadfind** option (in about:config), whereupon you can select links (or any word, really) just by typing.
+Forked from the work done by [dbergey](https://github.com/dbergey/) on [Type-To-Navigate](https://github.com/dbergey/Type-To-Navigate/).
+
+Use vim-style keybindings in Google Chrome. Might work in Safari -- I'm not sure and haven't tested yet. dbergey's "Type-To-Navigate" works well in Safari.
 
 Usage
 -----
-Type characters on the keyboard while there are no input fields focused. The first text match will be highlighted as you type. If the selection happens to be within a link, hitting the return key will follow it. Hitting &#8984;G will go to the next result. &#8679;&#8984;G will go to the previous result. Esc will cancel an in-progress search (in case you are in a hurry), and will also de-focus fields and links.
 
-Installation
-------------
-1. Click to install the extension, or download it and drag into a Safari window:
-	
-	- [Type-To-Navigate for Safari](http://dbergey.github.com/Type-To-Navigate/typetonavigate.safariextz)
-	- [Type-To-Navigate for Chrome](http://dbergey.github.com/Type-To-Navigate/typetonavigate.crx)
-	
-2. Click all ensuing confirmation buttons.
+Not in search mode:
+- **/:** start search mode
+- **backspace:** go back
+- **j:** scroll down
+- **k:** scroll up
 
-Both browsers provide an automatic extension update service, so there should be continual improvements where needed. Safari will not install updates without permission unless you check "Install Updates Automatically" in Extensions preferences; Chrome updates them automatically.
+In search mode:
+- **[:alpha:]:** find matching elements on page. Start typing and the page will begin highlighting results
+- **esc:** leave search mode
+- **enter:** enter result mode
 
-Sites With Remaining Quirks
----------------------------
-
-- GitHub -- some letters don't register, like 's', which triggers focus on the search field, and 't', which does something unspecified.
-- Google search results -- When typing the same string as that for which was searched, it seems like some hidden text is selected. Typing something different is a workaround.
-- Google Reader, Gmail? - sometimes interferes with j/k-style navigation
+In result mode:
+- **enter:** when on a link, follow the link
+- **n:** go to next matching result
+- **N:** go to previous matching result
 
 Future Plans
 ------------
 
-- j/k-style navigation support, for websites that use it like Google Reader and Gmail.
-- Configurable website blacklist.
-- Trigger key: / or ⌘⇧F
-- useful hotkeys like  ⌘C to copy the selected link, and ⌘I to send the link to instapaper
-- IFRAME support .. right now you can't type to select inside them.
-
-Version History
----------------
-- 1.01 - Migrated to github servers, removed old (inactive) userscript update code.
-- 1.00 - Initial public release.
+- regex support
 
 License
 -------
 
-Type-To-Navigate is licensed under [the MIT license](http://creativecommons.org/licenses/MIT/). Also, I remain the official publisher, including in Apple's Safari Extensions Gallery and automatic update feed. Feel free to fork, but push changes back to me and I'll incorporate them in the official version as I see fit.
+Licensed under a "do whatever" license. Reproduce, fork, whatever.
+
+Type-To-Navigate is licensed under [the MIT license](http://creativecommons.org/licenses/MIT/).
 
 Author
 ------
+Chris Czub
+derivative work from Type-To-Navigate by:
 Daniel K. Bergey  
 [http://twitter.com/dbergey](http://twitter.com/dbergey)

@@ -12,17 +12,20 @@ Usage
 -----
 
 Not in search mode:
+
 - **/:** start search mode
 - **backspace:** go back
 - **j:** scroll down
 - **k:** scroll up
 
 In search mode:
+
 - **[:alpha:]:** find matching elements on page. Start typing and the page will begin highlighting results
 - **esc:** leave search mode
 - **enter:** enter result mode
 
 In result mode:
+
 - **enter:** when on a link, follow the link
 - **n:** go to next matching result
 - **N:** go to previous matching result

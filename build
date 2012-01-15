@@ -25,7 +25,7 @@ else
 
 	$files = array(
 		'updates.xml' => "/(updatecheck.*version=')[\d.]*(')/",
-		'typetonavigate.safariextension/manifest.json' => '/("version": ")[\d.]*(",)/',
+		'chromevimbindings.safariextension/manifest.json' => '/("version": ")[\d.]*(",)/',
 	);
 
 	echo "Updating files to indicate version ".VERSION."...\n";
@@ -41,15 +41,16 @@ else
 }
 
 echo "Removing old extension...";
-system("rm typetonavigate.crx", $return);
+system("rm chromevimbindings.crx", $return);
 echo ( !$return ) ? "removed.\n" : "FAILED!\n";
 unset($return);
 
 echo "Building extension...";
 $params = array(
-	'extension' => 'typetonavigate.safariextension',
-	'output_crx' => 'typetonavigate.crx',
-	'key_file' => 'typetonavigate.pem',
+	'extension' => 'chromevimbindings.safariextension',
+	'output_crx' => 'chromevimbindings.crx',
+	'key_file' => 'chromevimbindings.pem',
 );
-system("crxmake --pack-extension={$params['extension']} --extension-output={$params['output_crx']} --pack-extension-key={$params['key_file']}", $return);
+system("crxmake --pack-extension={$params['extension']} --extension-output={$params['output_crx']}", $return);
+#system("crxmake --pack-extension={$params['extension']} --extension-output={$params['output_crx']} --pack-extension-key={$params['key_file']}", $return);
 echo ( !$return ) ? "built.\n" : "FAILED!\n";
